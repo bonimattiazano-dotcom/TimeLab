@@ -103,6 +103,11 @@ python3 tests/smoke.py                                    # test
 
 La versione sta nel file `VERSION`; le modifiche sono in [CHANGELOG.md](CHANGELOG.md). Come si pubblica una nuova versione: [docs/RILASCIO.md](docs/RILASCIO.md).
 
+## Autori
+
+- **[bonimattiazano-dotcom](https://github.com/bonimattiazano-dotcom)**: idea, progetto, prove sul campo.
+- **Claude** ([Anthropic](https://www.anthropic.com)): sviluppo del codice, scritto insieme in conversazione.
+
 ## Licenza
 
 [GPL-3.0](LICENSE). Puoi usare, studiare, modificare e ridistribuire TimeLab; se ridistribuisci una versione modificata, anche il suo codice deve restare aperto con la stessa licenza.
