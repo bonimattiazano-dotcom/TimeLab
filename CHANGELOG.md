@@ -4,6 +4,7 @@
 
 - Interfaccia con i colori del logo (grafite, blu, verde, rosso, viola); arancione solo per gli avvisi.
 - Logo accanto al nome in alto a sinistra.
+- L'anteprima video non è più una finestra flottante: si apre nella scaletta, sotto la voce del brano. Chiudendo la voce con la freccia il video si nasconde, aprendola ricompare.
 
 ## 0.9.0 — 2026-11-27 · prima versione pubblica (beta)
 
