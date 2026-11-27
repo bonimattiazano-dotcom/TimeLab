@@ -4,6 +4,7 @@
 --   check?id=..&p=...    controlla i file audio (righe: percorso TAB nome TAB dimensione) e ritrova quelli spostati
 --   pick?id=...[&m=1]    fa scegliere uno o più file audio e restituisce i percorsi (uno per riga)
 --   locate?id=..&n=..    ritrova un file audio per nome (Spotlight) e restituisce il percorso
+--   extract?id=..&p=..  scorpora l'audio di un video in un file a parte (Musica › TimeLab › Audio scorporato) e restituisce il percorso
 --   update?id=..&u=..&s=..&v=..  scarica la release da GitHub, la verifica (SHA-256, versione, firma) e sostituisce l'app
 on open location theURL
 	set qpos to offset of "?" in theURL
@@ -66,6 +67,12 @@ on open location theURL
 	else if act is "proxy" then
 		my makeProxy(my param(q, "p", true), reqID)
 		return
+	else if act is "extract" then
+		try
+			set p to my extractAudio(my param(q, "p", true))
+		on error errMsg
+			set p to "ERR|" & errMsg
+		end try
 	else if act is "update" then
 		try
 			set p to my installUpdate(my param(q, "u", true), my param(q, "s", true), my param(q, "v", true))
@@ -98,6 +105,27 @@ rm -f \"$tmp\"
 if [ -n \"$FF\" ]; then done_ 'ERR|né macOS né ffmpeg riescono a leggere questo formato'; else done_ 'ERR|macOS non legge questo formato (per esempio HAP): installa ffmpeg (brew install ffmpeg) per l anteprima'; fi"
 	do shell script "mkdir -p " & quoted form of resDir & "; /bin/sh -c " & quoted form of sh & " qtm " & quoted form of src & " " & quoted form of resPath & " > /dev/null 2>&1 &"
 end makeProxy
+
+on extractAudio(src)
+	-- prova prima senza ricomprimere (WAV 24 bit), poi ffmpeg, infine AAC con avconvert
+	set sh to "src=\"$1\"; fail() { echo \"ERR|$1\"; exit 0; }
+[ -f \"$src\" ] || fail 'il file video non esiste più'
+dir=\"$HOME/Music/TimeLab/Audio scorporato\"; mkdir -p \"$dir\" || fail 'non riesco a creare la cartella in Musica'
+base=$(basename \"${src%.*}\")
+pick() { o=\"$dir/$base (audio).$1\"; n=2; while [ -e \"$o\" ]; do o=\"$dir/$base (audio $n).$1\"; n=$((n+1)); done; echo \"$o\"; }
+tmp=\"$dir/.part-$$\"
+out=$(pick wav)
+if /usr/bin/afconvert -f WAVE -d LEI24 \"$src\" \"$tmp.wav\" >/dev/null 2>&1 && [ -s \"$tmp.wav\" ]; then mv -f \"$tmp.wav\" \"$out\"; echo \"$out\"; exit 0; fi
+rm -f \"$tmp.wav\"
+FF=$(command -v ffmpeg 2>/dev/null); [ -z \"$FF\" ] && for c in /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg; do [ -x \"$c\" ] && FF=$c && break; done
+if [ -n \"$FF\" ] && \"$FF\" -v error -y -i \"$src\" -vn -c:a pcm_s24le \"$tmp.wav\" && [ -s \"$tmp.wav\" ]; then mv -f \"$tmp.wav\" \"$out\"; echo \"$out\"; exit 0; fi
+rm -f \"$tmp.wav\"
+out=$(pick m4a)
+if /usr/bin/avconvert -s \"$src\" -o \"$tmp.m4a\" -p PresetAppleM4A --replace >/dev/null 2>&1 && [ -s \"$tmp.m4a\" ]; then mv -f \"$tmp.m4a\" \"$out\"; echo \"$out\"; exit 0; fi
+rm -f \"$tmp.m4a\"
+fail 'macOS non riesce a leggere l audio di questo video (con ffmpeg installato si può: brew install ffmpeg)'"
+	return do shell script "/bin/bash -c " & quoted form of sh & " qtm " & quoted form of src
+end extractAudio
 
 on installUpdate(zipURL, sumURL, ver)
 	-- tutto o niente: se un controllo fallisce l'app installata resta com'è

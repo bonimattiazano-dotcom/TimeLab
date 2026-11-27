@@ -5,6 +5,7 @@
 - Interfaccia con i colori del logo (grafite, blu, verde, rosso, viola); arancione solo per gli avvisi.
 - Logo accanto al nome in alto a sinistra.
 - L'anteprima video non è più una finestra flottante: si apre nella scaletta, sotto la voce del brano. Chiudendo la voce con la freccia il video si nasconde, aprendola ricompare.
+- Video e audio separabili: l'audio del video si può **escludere** (la Video cue in QLab resta muta) o **scorporare** in un file audio a parte (WAV, in Musica › TimeLab › Audio scorporato). Dopo lo scorporo video e audio si tolgono in modo indipendente; togliendo un video che ha l'audio dentro, TimeLab chiede se tenere l'audio.
 
 ## 0.9.0 — 2026-11-27 · prima versione pubblica (beta)
 
