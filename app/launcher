@@ -1,0 +1,56 @@
+#!/bin/bash
+# TimeLab: apre l'editor in una finestra dedicata e installa TimeLab Runner,
+# che permette al pulsante "Invia a QLab" di eseguire lo script senza Script Editor.
+RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+# cartella dati: il nome resta quello storico, così progetti, anteprime e impostazioni restano dove sono
+DEST_DIR="$HOME/.qlab-timeline-mixer"
+mkdir -p "$DEST_DIR" && cp -f "$RES/index.html" "$DEST_DIR/index.html"
+# dove sta l'app: serve al Runner per installare gli aggiornamenti
+(cd "$RES/../.." && pwd) > "$DEST_DIR/app.path"
+
+# --- Runner (ricompilato solo se manca o se è cambiato) ---
+RUNNER="$HOME/Applications/TimeLab Runner.app"
+OLD_RUNNER="$HOME/Applications/QLab Timeline Runner.app"   # nome delle versioni precedenti
+STAMP="$DEST_DIR/runner.stamp"
+if [ -d "$OLD_RUNNER" ]; then rm -rf "$OLD_RUNNER"; rm -f "$STAMP"; fi
+if [ ! -d "$RUNNER" ] || ! cmp -s "$RES/runner.applescript" "$STAMP"; then
+  mkdir -p "$HOME/Applications"
+  rm -rf "$RUNNER"
+  if osacompile -o "$RUNNER" "$RES/runner.applescript"; then
+    PL="$RUNNER/Contents/Info.plist"
+    PB=/usr/libexec/PlistBuddy
+    BID="io.github.bonimattiazano-dotcom.timelab.runner"
+    $PB -c "Set :CFBundleIdentifier $BID" "$PL" 2>/dev/null || $PB -c "Add :CFBundleIdentifier string $BID" "$PL"
+    $PB -c "Delete :CFBundleURLTypes" "$PL" 2>/dev/null
+    $PB -c "Add :CFBundleURLTypes array" \
+        -c "Add :CFBundleURLTypes:0 dict" \
+        -c "Add :CFBundleURLTypes:0:CFBundleURLName string TimeLab Runner" \
+        -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
+        -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string qlabtm" "$PL"
+    $PB -c "Add :NSAppleEventsUsageDescription string Serve per creare le cue in QLab." "$PL" 2>/dev/null
+    codesign --force --deep --sign - "$RUNNER" >/dev/null 2>&1
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$RUNNER"
+    cp -f "$RES/runner.applescript" "$STAMP"
+  fi
+fi
+
+# icona anche per il Runner (aggiornata se cambia)
+if [ -d "$RUNNER" ] && [ -f "$RES/AppIcon.icns" ] && ! cmp -s "$RES/AppIcon.icns" "$RUNNER/Contents/Resources/applet.icns"; then
+  cp -f "$RES/AppIcon.icns" "$RUNNER/Contents/Resources/applet.icns"
+  codesign --force --deep --sign - "$RUNNER" >/dev/null 2>&1
+  touch "$RUNNER"
+fi
+# l'app stessa: forza il Finder a rileggere l'icona dopo un aggiornamento
+touch "$(cd "$RES/../.." && pwd)" 2>/dev/null
+
+URL="file://$(printf '%s' "$DEST_DIR/index.html" | sed 's/ /%20/g')"
+# chiude l'eventuale finestra dell'app rimasta aperta con le impostazioni vecchie (solo il profilo dedicato,
+# non il Chrome normale), così riparte con il permesso di leggere i file audio
+pkill -f -- "--user-data-dir=$DEST_DIR/profile" >/dev/null 2>&1 && sleep 1
+for B in "Google Chrome" "Microsoft Edge" "Brave Browser" "Chromium"; do
+  if open -Ra "$B" >/dev/null 2>&1; then
+    open -na "$B" --args --app="$URL" --user-data-dir="$DEST_DIR/profile" --allow-file-access-from-files --no-first-run
+    exit 0
+  fi
+done
+open "$DEST_DIR/index.html"
