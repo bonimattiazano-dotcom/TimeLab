@@ -1,6 +1,6 @@
 # Changelog
 
-## Prossima versione (in preparazione)
+## 0.9.1 — 2026-11-27
 
 - Interfaccia con i colori del logo (grafite, blu, verde, rosso, viola); arancione solo per gli avvisi.
 - Logo accanto al nome in alto a sinistra.
