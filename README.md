@@ -4,7 +4,7 @@
 
 **Programmi su una timeline i comandi del mixer audio e del banco luci, sopra la forma d'onda dei brani, e li esporti in QLab 4.**
 
-> ⚠️ **Beta (0.9).** È provato sul campo con Yamaha QL, ma molti profili sono costruiti dai manuali e non sono ancora stati provati su un banco vero (vedi [Banchi supportati](#banchi-supportati)). Prova sempre lo show prima di andare in scena.
+> ⚠️ **Beta (0.9).** È provato sul campo con Yamaha QL e Midas M32, ma molti profili sono costruiti dai manuali e non sono ancora stati provati su un banco vero (vedi [Banchi supportati](#banchi-supportati)). Prova sempre lo show prima di andare in scena.
 
 ![TimeLab](docs/img/timeline.png)
 
@@ -57,7 +57,8 @@ Stato: ✅ provato su banco vero · 🟡 costruito dal protocollo ufficiale, da 
 |---|---|---|---|
 | Allen & Heath | Avantis, dLive, SQ, Qu | MIDI (NRPN) | 🟡 |
 | Allen & Heath | CQ-12T / 18T / 20B | MIDI (NRPN), scene | 🟡 |
-| Behringer / Midas | X32 / M32, X Air / MR18, Wing | MIDI | 🟡 |
+| Behringer / Midas | X32 / M32 | MIDI | ✅ M32 · 🟡 X32 |
+| Behringer / Midas | X Air / MR18, Wing | MIDI | 🟡 |
 | Behringer / Midas | X32 / M32, X Air / MR18, Wing | rete (OSC) | 🟡 |
 | DiGiCo | SD / Quantum, S21 / S31 | rete (OSC), snapshot | 🧪 |
 | Midas | PRO series, Heritage-D HD96 | MIDI, tabella CC compilata da te | 🟡 |
