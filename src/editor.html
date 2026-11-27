@@ -239,10 +239,10 @@ button.icon{width:28px;height:28px;padding:0;justify-content:center}
 .time{font-size:18px;min-width:104px}
 #playBtn{min-width:82px}
 .wavewrap{position:relative}
-.vmon{position:absolute;top:30px;right:12px;z-index:6;background:#111;border:1px solid #48484e;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;width:300px}
-.vmhd{display:flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;background:#2c2c30;cursor:move;user-select:none;font-size:11px;color:var(--muted)}
-.vmhd .vmt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
-.vmhd button.icon{width:22px;height:20px}
+/* anteprima video: sta sopra al riquadro del brano corrente nella scaletta (si sposta con lo scorrimento) */
+.vmon{position:absolute;left:0;top:0;width:200px;z-index:4;background:#000;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px #48484e}
+.vslot{margin:4px 0 6px;border-radius:6px;background:#000;aspect-ratio:16/9}
+.vslot.off{aspect-ratio:auto;background:none;color:var(--muted);font-size:11px;padding:2px 4px;font-style:italic}
 .vmbody{position:relative;background:#000;aspect-ratio:16/9}
 .vmbody video{width:100%;height:100%;display:block;object-fit:contain}
 .vmst{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:12px;color:#ddd;background:rgba(0,0,0,.6)}
@@ -302,6 +302,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   <div class="slhead"><button class="addbtn" id="addBtn" data-ic="plus" onclick="toggleAddMenu(event)" title="Aggiungi brani o una sequenza"></button><h2>Scaletta</h2><span class="note" id="slInfo"></span><span class="sp" style="flex:1"></span>
     <button class="small" id="slToggle" onclick="toggleAllOpen()" title="Espandi o comprimi tutti i brani">Espandi</button></div>
   <div class="sltree" id="sltree"></div>
+  <div class="vmon" id="vmon" style="display:none"><div class="vmbody"><video id="vmonVideo" muted playsinline preload="auto"></video><div class="vmst" id="vmStatus"></div></div></div>
   <div class="addmenu" id="addMenu">
     <button onclick="closeAddMenu();addTracksClick()"><b>Brani da file audio…</b><span>un brano per file, sotto quello selezionato</span></button>
     <button onclick="closeAddMenu();addEmptyTrack()"><b>Sequenza senza audio</b><span>solo comandi, sulla timeline</span></button>
@@ -325,11 +326,6 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   </div>
   <div class="wavewrap" id="wavewrap">
     <canvas id="wave"></canvas>
-    <div class="vmon" id="vmon" style="display:none">
-      <div class="vmhd" id="vmhd"><span class="vmt" id="vmTitle">Video</span><span class="sp" style="flex:1"></span>
-        <button class="small icon" data-ic="minus" onclick="vmonSize(-1)" title="Più piccolo"></button><button class="small icon" data-ic="plus" onclick="vmonSize(1)" title="Più grande"></button></div>
-      <div class="vmbody"><video id="vmonVideo" muted playsinline preload="auto"></video><div class="vmst" id="vmStatus"></div></div>
-    </div>
     <div class="drophint" id="hint">
       <div class="upl">
         <div class="uplbox"><div class="big" data-ic="audio" data-icsz="30"></div><b>Audio o video</b><span>Trascina qui wav, aif, mp3, mov o mp4.<br>Un file: il media di questo brano.<br>Più file: un brano ciascuno in scaletta.</span><div class="acts"><button onclick="loadAudioClick()">Scegli file…</button><button onclick="addTracksClick()">Più brani…</button></div></div>
@@ -1218,25 +1214,35 @@ const isVideoName=n=>VIDEO_RE.test(String(n||''));
 const isVideoFile=f=>!!f && (/^video\//.test(f.type||'') || isVideoName(f.name));
 const videoStore=new Map();   // id -> File video scelto nel browser (non salvato in IndexedDB: troppo grande)
 const vEl=document.getElementById('vmonVideo');
-let vState={tid:null,url:''}, vLastSet=-1, vmonW=300;
+let vState={tid:null,url:''}, vLastSet=-1, vmonOn=false;
 function setTrackVideoFile(t,f){ t.videoName=f.name; t.videoSize=f.size; t.videoPath=''; t.videoProxy=''; videoStore.set(t.id,f);
   if(!t.groupName) t.groupName=f.name.replace(/\.[^.]+$/,'');
   if(!t.audioName){ bufCache.delete(t.id); peakCache.delete(t.id); if(t.id===st.curId){ buffer=null; peaks=null; } }
   if(IS_APP) locatePath(f.name,f.size).then(p=>{ if(p){ t.videoPath=p; if(t.id===st.curId) st.videoPath=p; save(); renderSetlist(); } }); }
 function setVStatus(txt){ document.getElementById('vmStatus').textContent=txt||''; }
-function vmonSize(d){ vmonW=Math.max(200,Math.min(720,vmonW+d*100)); document.getElementById('vmon').style.width=vmonW+'px'; try{ localStorage.setItem('qtm.vmonW',vmonW); }catch(e){} }
+// mette l'anteprima sopra al suo posto nella scaletta (voce aperta del brano corrente); nascosta se la voce è chiusa o fuori vista
+function placeVmon(){
+  const mon=document.getElementById('vmon'), col=document.getElementById('slcol'), tree=document.getElementById('sltree');
+  const slot=vmonOn && tree.querySelector('.vslot[data-vslot="'+st.curId+'"]');
+  if(!slot || !col.offsetParent){ mon.style.display='none'; return; }
+  const c=col.getBoundingClientRect(), r=slot.getBoundingClientRect(), v=tree.getBoundingClientRect();
+  mon.style.display=''; mon.style.left=(r.left-c.left)+'px'; mon.style.top=(r.top-c.top)+'px'; mon.style.width=r.width+'px'; mon.style.height=r.height+'px';
+  const top=Math.max(0,v.top-r.top), bot=Math.max(0,r.bottom-v.bottom);
+  mon.style.visibility = (top>=r.height||bot>=r.height) ? 'hidden' : '';
+  mon.style.clipPath = (top||bot) ? 'inset('+top+'px 0 '+bot+'px 0)' : '';
+}
 function tryVideoSrc(url){ return new Promise(res=>{ let done=false; const fin=v=>{ if(done) return; done=true; clearTimeout(to); vEl.onloadeddata=vEl.onerror=null; res(v); };
   const to=setTimeout(()=>fin(false),10000);
   vEl.onloadeddata=()=>fin(vEl.videoWidth>0); vEl.onerror=()=>fin(false);
   if(vState.url && vState.url.startsWith('blob:')) URL.revokeObjectURL(vState.url);
   vState.url=url; vEl.src=url; vEl.load(); }); }
-function hideVideo(){ document.getElementById('vmon').style.display='none'; vEl.removeAttribute('src'); try{ vEl.load(); }catch(e){} vState={tid:null,url:''}; }
+function hideVideo(){ vmonOn=false; placeVmon(); vEl.removeAttribute('src'); try{ vEl.load(); }catch(e){} vState={tid:null,url:''}; }
 let vLoading=0;
 async function loadVideoFor(tid){
-  const t=trackById(tid); const mon=document.getElementById('vmon');
+  const t=trackById(tid);
   if(!t||!t.videoName){ hideVideo(); return; }
   const my=++vLoading;
-  mon.style.display=''; document.getElementById('vmTitle').textContent=t.videoName; document.getElementById('vmTitle').title=t.videoPath||t.videoName;
+  vmonOn=true; placeVmon();
   if(vState.tid===tid && vEl.videoWidth>0){ syncVideo(); return; }
   vState.tid=null; setVStatus('Apro '+t.videoName+'…');
   const stale=()=>my!==vLoading||st.curId!==tid;
@@ -1280,15 +1286,8 @@ function syncVideo(){
   if(playing){ if(vEl.paused) vEl.play().catch(()=>{}); if(Math.abs(vEl.currentTime-p)>0.15) vEl.currentTime=p; }
   else { if(!vEl.paused) vEl.pause(); if(Math.abs(vEl.currentTime-p)>0.03 && Math.abs(vLastSet-p)>0.001){ vLastSet=p; vEl.currentTime=p; } }
 }
-// monitor trascinabile
-(function(){ const hd=document.getElementById('vmhd'), mon=document.getElementById('vmon'); let sx=0,sy=0,ox=0,oy=0,on=false;
-  try{ vmonW=+localStorage.getItem('qtm.vmonW')||300; }catch(e){} mon.style.width=vmonW+'px';
-  hd.addEventListener('mousedown',e=>{ if(e.target.closest('button')) return; on=true; sx=e.clientX; sy=e.clientY; const r=mon.getBoundingClientRect(), pr=mon.offsetParent.getBoundingClientRect(); ox=r.left-pr.left; oy=r.top-pr.top; e.preventDefault(); });
-  window.addEventListener('mousemove',e=>{ if(!on) return; const pr=mon.offsetParent.getBoundingClientRect();
-    const x=Math.max(0,Math.min(pr.width-mon.offsetWidth,ox+e.clientX-sx)), y=Math.max(0,Math.min(pr.height-40,oy+e.clientY-sy));
-    mon.style.left=x+'px'; mon.style.top=y+'px'; mon.style.right='auto'; });
-  window.addEventListener('mouseup',()=>{ on=false; });
-})();
+document.getElementById('sltree').addEventListener('scroll',placeVmon,{passive:true});
+window.addEventListener('resize',()=>placeVmon());
 
 // ===================== Vista / disegno =====================
 const cv=document.getElementById('wave'), cx=cv.getContext('2d');
@@ -3222,6 +3221,7 @@ function renderSetlist(){
       h+='<div class="kids">';
       if(t.videoName){ const vnp=!t.videoPath;
         h+='<div class="krow vi'+(vnp?' nopath':'')+'" title="'+esc(t.videoPath||'Percorso non salvato: in QLab il file verrà cercato per nome')+'"><span class="ki">'+ic('video',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+esc(t.videoName)+(vnp?' <span class="warn">●</span>':'')+'</span><span class="kx" data-rm="video" data-tid="'+t.id+'" title="Togli il video dal brano">×</span></div>'; }
+      if(t.videoName) h+= cur ? '<div class="vslot" data-vslot="'+t.id+'"></div>' : '<div class="vslot off">seleziona il brano per vedere il video</div>';
       const np=t.audioName&&!t.audioPath;
       if(t.videoName && !t.audioName) h+='<div class="krow au"><span class="ki">'+ic('audio',12)+'</span><span class="kt"></span><span class="kn"><i>audio del video</i></span></div>'; else
       h+='<div class="krow au'+(np?' nopath':'')+'" data-id="'+t.id+'" title="'+esc(t.audioPath||(np?'Percorso non salvato: in QLab il file verrà cercato per nome. Nell\'app per Mac usa «Carica audio…» per salvarlo.':''))+'"><span class="ki">'+ic('audio',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+(t.audioName?esc(t.audioName):'<i>senza audio</i>')+(np?' <span class="warn">●</span>':'')+'</span>'+(t.audioName&&t.videoName?'<span class="kx" data-rm="audio" data-tid="'+t.id+'" title="Togli l\'audio separato: torna l\'audio del video">×</span>':'')+'</div>';
@@ -3237,6 +3237,7 @@ function renderSetlist(){
     return h;
   }).join('');
   el.scrollTop=scrollTop;
+  placeVmon();
   el.querySelectorAll('.trow').forEach(row=>{
     const id=+row.dataset.id, t=trackById(id);
     row.addEventListener('click',e=>{
@@ -3283,7 +3284,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAddMenu(); },
 function applyCols(){ const a=document.querySelector('.app'); let c=''; try{ c=localStorage.getItem('qtm.cols')||''; }catch(e){}
   a.classList.toggle('noMix',c.includes('noMix')); a.classList.toggle('noSl',c.includes('noSl'));
   document.getElementById('togMix').classList.toggle('on',!c.includes('noMix')); document.getElementById('togSl').classList.toggle('on',!c.includes('noSl'));
-  requestAnimationFrame(()=>{ resize(); }); }
+  requestAnimationFrame(()=>{ resize(); placeVmon(); }); }
 function toggleCol(k){ let c=''; try{ c=localStorage.getItem('qtm.cols')||''; }catch(e){} const set=new Set(c.split(' ').filter(Boolean)); set.has(k)?set.delete(k):set.add(k);
   try{ localStorage.setItem('qtm.cols',[...set].join(' ')); }catch(e){} applyCols(); }
 function removeMedia(tid,kind){ const t=trackById(tid); if(!t) return; storeCur(); stop();
