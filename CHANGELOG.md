@@ -6,6 +6,9 @@
 - Logo accanto al nome in alto a sinistra.
 - L'anteprima video non è più una finestra flottante: si apre nella scaletta, sotto la voce del brano. Chiudendo la voce con la freccia il video si nasconde, aprendola ricompare.
 - Video e audio separabili: l'audio del video si può **escludere** (la Video cue in QLab resta muta) o **scorporare** in un file audio a parte (WAV, in Musica › TimeLab › Audio scorporato). Dopo lo scorporo video e audio si tolgono in modo indipendente; togliendo un video che ha l'audio dentro, TimeLab chiede se tenere l'audio.
+- Correzione: se un brano ha sia il video sia un file audio a parte, la Video cue in QLab viene resa muta (prima suonavano tutti e due). Puoi riattivare l'audio del video dalla scaletta.
+- Correzione: importando da QLab comandi luci del grandMA3, il banco luci viene riconosciuto come grandMA3 (prima ChamSys).
+- Pulizia del codice: stili duplicati unificati, codice non più usato rimosso.
 
 ## 0.9.0 — 2026-11-27 · prima versione pubblica (beta)
 
