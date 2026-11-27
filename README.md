@@ -15,7 +15,7 @@
 - **Cambi banco quando vuoi**: la programmazione resta e i comandi vengono tradotti per il nuovo mixer o il nuovo banco luci. Quello che sul nuovo banco non esiste resta segnato in rosso e torna valido se torni indietro.
 - **Scaletta** con più brani, riordinabile; ogni brano ha i suoi marker.
 - **Importa da QLab**: riapri un workspace `.qlab4` già fatto (gruppi o catene in sequenza) e ritrovi brani, ordine e comandi.
-- **Video**: anteprima nel programma (anche ProRes/HAP, convertiti al volo in un proxy temporaneo) e file originale nel progetto QLab.
+- **Video**: anteprima nella scaletta, sotto la voce del brano (anche ProRes/HAP, convertiti al volo in un proxy temporaneo), e file originale nel progetto QLab. L'audio del video si può escludere o scorporare in un file a parte.
 - **LTC**: genera e aggancia una traccia di timecode per ogni brano (ora = posizione in scaletta).
 - Esportazione **robusta**: aggiorna i brani già presenti senza duplicare, controlla i percorsi dei file prima di inviare, riporta gli errori brano per brano.
 
