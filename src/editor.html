@@ -249,6 +249,10 @@ button.icon{width:28px;height:28px;padding:0;justify-content:center}
 .vmst:empty{display:none}
 .krow .kx{margin-left:auto;color:var(--muted);cursor:pointer;padding:0 4px;visibility:hidden}
 .krow:hover .kx{visibility:visible} .krow .kx:hover{color:var(--close)}
+.krow .kbtn{font-size:10.5px;padding:0 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted);cursor:pointer;margin-left:4px;line-height:16px}
+.krow.va .kbtn:first-of-type{margin-left:auto} .krow.ask .kn{flex:1} .krow .kbtn:hover{color:var(--text);border-color:var(--accent)}
+.krow.va .kn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis} .krow.va.off .kn{color:var(--muted)}
+.krow.ask{background:rgba(239,91,91,.08)}
 kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
 </style>
 </head>
@@ -1266,6 +1270,7 @@ async function loadVideoFor(tid){
 // audio del video (se il brano non ha un audio separato): dal file nel browser, dalla copia leggera o dall'originale se non è enorme
 async function loadVideoAudio(tid,src){
   const t=trackById(tid); if(!t) return;
+  if(t.videoAudio==='off'){ await videoAudioFallback(tid,vEl.duration||0); return; }
   const dur=vEl.duration||0; let file=null;
   const BIG=700*1024*1024;
   try{
@@ -1881,7 +1886,7 @@ function buildPoolScript(){
     const off=+t.audioOffset||0;
     const wl='{'+acts.map(({time,a})=>'{'+varOf.get(a.t+'|'+a.op)+', '+(time+off).toFixed(3)+', "'+(isLxKey(a.t)?'purple':a.op==='open'?'green':'red')+'"}').join(', ')+'}';
     L.push('try');
-    L.push('\tmy doTrack('+t.id+', '+asq(t.qid||'')+', '+asq(name)+', '+asq(t.audioPath||'')+', '+asq(t.audioName||'')+', '+asq(String(t.audioName||'').replace(/([\[\]*?\\])/g,'\\$1'))+', '+off.toFixed(3)+', '+wl+', '+ltcHour(t)+', '+Math.ceil((+t.duration||0)+off)+', '+asq(t.videoPath||'')+', '+asq(t.videoName||'')+', '+asq(String(t.videoName||'').replace(/([\[\]*?\\])/g,'\\$1'))+') -- '+(n+1)+'. '+acts.length+' Start cue');
+    L.push('\tmy doTrack('+t.id+', '+asq(t.qid||'')+', '+asq(name)+', '+asq(t.audioPath||'')+', '+asq(t.audioName||'')+', '+asq(String(t.audioName||'').replace(/([\[\]*?\\])/g,'\\$1'))+', '+off.toFixed(3)+', '+wl+', '+ltcHour(t)+', '+Math.ceil((+t.duration||0)+off)+', '+asq(t.videoPath||'')+', '+asq(t.videoName||'')+', '+asq(String(t.videoName||'').replace(/([\[\]*?\\])/g,'\\$1'))+', '+(t.videoName&&t.videoAudio==='off'?'true':'false')+') -- '+(n+1)+'. '+acts.length+' Start cue');
     L.push('on error errMsg number errNum');
     L.push('\tif errNum is -128 then error number -128');
     L.push('\tset end of report to "E|'+t.id+'|" & errMsg');
@@ -2033,7 +2038,7 @@ on existingOf(nameList)
 	return found
 end existingOf
 
-on doTrack(tid, qid, gname, aPath, aName, aGlob, aOffset, wl, ltcHour, fbDur, vPath, vName, vGlob)
+on doTrack(tid, qid, gname, aPath, aName, aGlob, aOffset, wl, ltcHour, fbDur, vPath, vName, vGlob, vMute)
 	set g to missing value
 	if syncMode is not "new" then
 		-- 1. lo stesso gruppo dell'ultimo invio (anche se nel frattempo il brano è stato rinominato)
@@ -2092,6 +2097,18 @@ on doTrack(tid, qid, gname, aPath, aName, aGlob, aOffset, wl, ltcHour, fbDur, vP
 				move cue id (uniqueID of videoCue) of parent of videoCue to beginning of g
 			end tell
 		end if
+	end if
+	-- audio del video escluso nell'editor: Video cue muta (se poi lo riattivi, torna a 0 dB)
+	if videoCue is not missing value then
+		try
+			${T}
+				if vMute then
+					setLevel videoCue row 0 column 0 db -120
+				else if (getLevel videoCue row 0 column 0) < -119 then
+					setLevel videoCue row 0 column 0 db 0
+				end if
+			end tell
+		end try
 	end if
 	set wantIDs to {}
 	set wantTimes to {}
@@ -3121,12 +3138,17 @@ async function switchTrack(id){
   if(id===st.curId) return;
   const t=trackById(id); if(!t) return;
   stop(); storeCur(); st.curId=id; loadCurFields(t);
-  sel=new Set(); anchorId=null; undoStack=[];
+  sel=new Set(); anchorId=null; undoStack=[]; pos=0;
+  await openTrackMedia(id);
+}
+// carica audio e video del brano corrente (dalla cache, dal browser, da IndexedDB o dal percorso salvato)
+async function openTrackMedia(id){
+  const t=trackById(id); if(!t) return; loadCurFields(t);
   const c=bufCache.get(id);
   const pk=c?c.peaks:(peakCache.get(id)||null);
   buffer=c?c.buffer:null; peaks=pk;
   duration=c?buffer.duration:(pk?pk.dur:Math.max(60, t.duration||0, st.markers.length?st.markers[st.markers.length-1].time+10:0));
-  pos=0; save(); applyState(); zoomFit(); showTrackAudioState();
+  pos=Math.min(pos,duration); save(); applyState(); zoomFit(); showTrackAudioState();
   if(!c){
     if(!peaks && t.audioName){ const p2=await loadPeaks(id); if(p2 && st.curId===id && !buffer){ peaks=p2; duration=p2.dur; zoomFit(); showTrackAudioState(); } }
     if(st.curId!==id) return;
@@ -3220,11 +3242,18 @@ function renderSetlist(){
     if(t.open){
       h+='<div class="kids">';
       if(t.videoName){ const vnp=!t.videoPath;
-        h+='<div class="krow vi'+(vnp?' nopath':'')+'" title="'+esc(t.videoPath||'Percorso non salvato: in QLab il file verrà cercato per nome')+'"><span class="ki">'+ic('video',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+esc(t.videoName)+(vnp?' <span class="warn">●</span>':'')+'</span><span class="kx" data-rm="video" data-tid="'+t.id+'" title="Togli il video dal brano">×</span></div>'; }
+        h+='<div class="krow vi'+(vnp?' nopath':'')+'" title="'+esc(t.videoPath||'Percorso non salvato: in QLab il file verrà cercato per nome')+'"><span class="ki">'+ic('video',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+esc(t.videoName)+(vnp?' <span class="warn">●</span>':'')+'</span><span class="kx" data-rm="video" data-tid="'+t.id+'" title="Togli il video dal brano">×</span></div>';
+        if(pendingVid===t.id) h+='<div class="krow ask"><span class="ki"></span><span class="kn">Togli il video e…</span><span class="kbtn" data-vact="rmv-keep" data-tid="'+t.id+'">tieni l\'audio</span><span class="kbtn" data-vact="rmv-all" data-tid="'+t.id+'">togli tutto</span><span class="kbtn" data-vact="rmv-no" data-tid="'+t.id+'">annulla</span></div>'; }
       if(t.videoName) h+= cur ? '<div class="vslot" data-vslot="'+t.id+'"></div>' : '<div class="vslot off">seleziona il brano per vedere il video</div>';
       const np=t.audioName&&!t.audioPath;
-      if(t.videoName && !t.audioName) h+='<div class="krow au"><span class="ki">'+ic('audio',12)+'</span><span class="kt"></span><span class="kn"><i>audio del video</i></span></div>'; else
-      h+='<div class="krow au'+(np?' nopath':'')+'" data-id="'+t.id+'" title="'+esc(t.audioPath||(np?'Percorso non salvato: in QLab il file verrà cercato per nome. Nell\'app per Mac usa «Carica audio…» per salvarlo.':''))+'"><span class="ki">'+ic('audio',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+(t.audioName?esc(t.audioName):'<i>senza audio</i>')+(np?' <span class="warn">●</span>':'')+'</span>'+(t.audioName&&t.videoName?'<span class="kx" data-rm="audio" data-tid="'+t.id+'" title="Togli l\'audio separato: torna l\'audio del video">×</span>':'')+'</div>';
+      if(t.videoName){ const off=t.videoAudio==='off', busy=splitBusy===t.id;
+        h+='<div class="krow va'+(off?' off':'')+'" title="'+(off?'L\'audio del video è escluso: in QLab la Video cue resta muta':'L\'audio contenuto nel file video')+'"><span class="ki">'+ic('audio',12)+'</span><span class="kn"><i>'+(off?'audio del video: escluso':videoHasAudio(t)?'audio del video':'video senza audio')+'</i></span>'+
+          (busy?'<span class="kbtn">scorporo…</span>':off?'<span class="kbtn" data-vact="va-on" data-tid="'+t.id+'" title="Rimetti l\'audio del video">riattiva</span>':
+            (t.audioName||!videoHasAudio(t)?'':'<span class="kbtn" data-vact="split" data-tid="'+t.id+'" title="Copia l\'audio del video in un file audio a parte: poi video e audio si tolgono in modo indipendente">scorpora</span>')+
+            '<span class="kx" data-rm="vaudio" data-tid="'+t.id+'" title="Escludi l\'audio del video">×</span>')+'</div>';
+      }
+      if(!t.videoName || t.audioName)
+      h+='<div class="krow au'+(np?' nopath':'')+'" data-id="'+t.id+'" title="'+esc(t.audioPath||(np?'Percorso non salvato: in QLab il file verrà cercato per nome. Nell\'app per Mac usa «Carica audio…» per salvarlo.':''))+'"><span class="ki">'+ic('audio',12)+'</span><span class="kt">'+fmt(+t.audioOffset||0)+'</span><span class="kn">'+(t.audioName?esc(t.audioName):'<i>senza audio</i>')+(np?' <span class="warn">●</span>':'')+'</span>'+(t.audioName&&t.videoName?'<span class="kx" data-rm="audio" data-tid="'+t.id+'" title="Togli questo file audio (il video resta)">×</span>':'')+'</div>';
       if(st.ltc&&st.ltc.on) h+='<div class="krow ltc"><span class="ki">'+ic('clock',12)+'</span><span class="kt">00:00.000</span><span class="kn">LTC '+ltcStart(t)+' · '+(st.ltc.fps||25)+' fps</span></div>';
       const rows=[]; mks.forEach(m=>m.actions.forEach(a=>rows.push({m,a})));
       rows.sort((x,y)=>x.m.time-y.m.time);
@@ -3287,12 +3316,59 @@ function applyCols(){ const a=document.querySelector('.app'); let c=''; try{ c=l
   requestAnimationFrame(()=>{ resize(); placeVmon(); }); }
 function toggleCol(k){ let c=''; try{ c=localStorage.getItem('qtm.cols')||''; }catch(e){} const set=new Set(c.split(' ').filter(Boolean)); set.has(k)?set.delete(k):set.add(k);
   try{ localStorage.setItem('qtm.cols',[...set].join(' ')); }catch(e){} applyCols(); }
+let pendingVid=null, splitBusy=null;
+// ricarica l'audio di un brano (dopo aver cambiato il file o escluso/riattivato l'audio del video)
+function reloadTrackAudio(t){ bufCache.delete(t.id); peakCache.delete(t.id);
+  if(t.id===st.curId){ loadCurFields(t); buffer=null; peaks=null; vState.tid=null; showTrackAudioState(); draw(); if(t.videoName) loadVideoFor(t.id); } }
+function videoHasAudio(t){ const pk=peakCache.get(t.id)||(t.id===st.curId?peaks:null); return !(pk&&pk.silent); }
 function removeMedia(tid,kind){ const t=trackById(tid); if(!t) return; storeCur(); stop();
-  if(kind==='video'){ t.videoName=''; t.videoPath=''; t.videoProxy=''; t.videoSize=0; videoStore.delete(tid); if(!t.audioName){ bufCache.delete(tid); peakCache.delete(tid); } }
+  if(kind==='video' && !t.audioName && t.videoAudio!=='off' && videoHasAudio(t) && pendingVid!==tid){ pendingVid=tid; renderSetlist(); return; }
+  pendingVid=null;
+  if(kind==='vaudio'){ t.videoAudio='off'; save(); reloadTrackAudio(t); renderSetlist(); toast('Audio del video escluso: in QLab la Video cue sarà muta'); return; }
+  if(kind==='video'){ t.videoName=''; t.videoPath=''; t.videoProxy=''; t.videoSize=0; delete t.videoAudio; videoStore.delete(tid); if(!t.audioName){ bufCache.delete(tid); peakCache.delete(tid); } }
   else { t.audioName=''; t.audioPath=''; t.audioSize=0; fileStore.delete(tid); idbDel(tid); bufCache.delete(tid); peakCache.delete(tid); }
-  if(tid===st.curId){ loadCurFields(t); buffer=null; peaks=null; vState.tid=null; showTrackAudioState(); draw(); loadVideoFor(tid); }
-  save(); renderSetlist(); }
+  if(tid===st.curId) loadCurFields(t);
+  save(); renderSetlist();
+  if(tid===st.curId){ vState.tid=null; if(!t.videoName) hideVideo(); openTrackMedia(tid); } }
 document.addEventListener('click',e=>{ const x=e.target.closest&&e.target.closest('[data-rm]'); if(!x) return; e.stopPropagation(); removeMedia(+x.dataset.tid,x.dataset.rm); },true);
+document.addEventListener('click',async e=>{ const x=e.target.closest&&e.target.closest('[data-vact]'); if(!x) return; e.stopPropagation();
+  const tid=+x.dataset.tid, t=trackById(tid), a=x.dataset.vact; if(!t) return;
+  if(a==='va-on'){ t.videoAudio='on'; save(); reloadTrackAudio(t); renderSetlist(); return; }
+  if(a==='split'){ await splitVideoAudio(t); return; }
+  if(a==='rmv-no'){ pendingVid=null; renderSetlist(); return; }
+  if(a==='rmv-all'){ pendingVid=tid; removeMedia(tid,'video'); return; }
+  if(a==='rmv-keep'){ pendingVid=null; if(await splitVideoAudio(t)){ pendingVid=tid; removeMedia(tid,'video'); } return; }
+},true);
+// scorpora: l'audio del video diventa un file audio a parte (nell'app lo estrae il Runner; nel browser diventa un WAV scaricato)
+async function splitVideoAudio(t){
+  if(splitBusy) return false;
+  if(!videoHasAudio(t)){ toast('Questo video non ha una traccia audio da scorporare'); return false; }
+  storeCur(); stop(); splitBusy=t.id; renderSetlist();
+  try{
+    if(IS_APP){
+      if(!t.videoPath){ toast('Prima ritrova il file video (Media…): serve il suo percorso'); return false; }
+      const r=await runnerCall('extract',{p:t.videoPath},20*60000);
+      if(!r||r.startsWith('ERR|')){ toast('Scorporo non riuscito: '+(r?r.slice(4):'TimeLab Runner non risponde'),6000); return false; }
+      t.audioPath=r; t.audioName=r.split('/').pop(); t.audioSize=0;
+    } else {
+      let c=bufCache.get(t.id); if(!c && t.id===st.curId && buffer) c={buffer};
+      if(!c){ toast('Seleziona il brano, aspetta che si carichi e riprova'); return false; }
+      const name=String(t.videoName).replace(/\.[^.]+$/,'')+' (audio).wav', f=new File([wavFromBuffer(c.buffer)],name,{type:'audio/wav'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+      storeFile(t.id,f); t.audioName=name; t.audioPath=''; t.audioSize=f.size;
+    }
+    t.videoAudio='off';
+    if(t.id===st.curId){ st.audioName=t.audioName; st.audioPath=t.audioPath; }
+    save(); toast('Audio scorporato in '+t.audioName+(IS_APP?'':' (scaricato)')+': ora video e audio sono indipendenti',6000); return true;
+  } finally { splitBusy=null; renderSetlist(); }
+}
+function wavFromBuffer(b){ const ch=Math.min(2,b.numberOfChannels), n=b.length, sr=b.sampleRate, out=new DataView(new ArrayBuffer(44+n*ch*2));
+  const w=(o,str)=>{ for(let i=0;i<str.length;i++) out.setUint8(o+i,str.charCodeAt(i)); };
+  w(0,'RIFF'); out.setUint32(4,36+n*ch*2,true); w(8,'WAVE'); w(12,'fmt '); out.setUint32(16,16,true); out.setUint16(20,1,true); out.setUint16(22,ch,true);
+  out.setUint32(24,sr,true); out.setUint32(28,sr*ch*2,true); out.setUint16(32,ch*2,true); out.setUint16(34,16,true); w(36,'data'); out.setUint32(40,n*ch*2,true);
+  const data=[...Array(ch).keys()].map(c=>b.getChannelData(c)); let o=44;
+  for(let i=0;i<n;i++) for(let c=0;c<ch;c++){ const v=Math.max(-1,Math.min(1,data[c][i])); out.setInt16(o,v<0?v*0x8000:v*0x7fff,true); o+=2; }
+  return out.buffer; }
 function toggleAllOpen(){ setAllOpen(!st.tracks.every(t=>t.open)); }
 
 // ===================== Percorsi audio (app per Mac) =====================
