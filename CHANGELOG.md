@@ -1,5 +1,10 @@
 # Changelog
 
+## Prossima versione (in preparazione)
+
+- Interfaccia con i colori del logo (grafite, blu, verde, rosso, viola); arancione solo per gli avvisi.
+- Logo accanto al nome in alto a sinistra.
+
 ## 0.9.0 — 2026-11-27 · prima versione pubblica (beta)
 
 - Nuovo nome: **TimeLab** (prima "QLab Timeline Mixer"). Il Runner diventa *TimeLab Runner*; quello vecchio viene rimosso da solo al primo avvio. Progetti e impostazioni restano dove sono.
